@@ -8,7 +8,7 @@ This repository contains the GHMC Windows print station agent, packaging path, a
 - **GHMC backend:** source includes one-time station enrollment, token-based agent lifecycle, station inventory reporting, printer assignment and resolution, test jobs, job creation, claim, acknowledgement, and release metadata routes. Review and test the current code and authorization boundaries before production rollout.
 - **Web frontend:** the permission-gated Printer Management screen supports enrollment codes, station/printer inventory, refresh/revoke, test print, assignments, and recent jobs. A shared PDF `dispatchPrint` helper exists, but it has not been adopted by all print callers.
 - **Agent:** `src/ghmc_print_agent` is a Python polling implementation. It discovers Windows queues through PowerShell, stores its station token with `keyring`, and submits PDFs with SumatraPDF. It is an initial slice; see the gaps below before calling it production-ready.
-- **Installer:** `build_windows.ps1` and `packaging/installer.iss` define a per-user Windows installer and login startup. No signed installer has been built, uploaded, or configured for frontend download.
+- **Installer:** `build_windows.ps1` and `packaging/installer.iss` define a per-user Windows installer and login startup. The unsigned v0.1.0 installer is published as a GitHub release and its release metadata is the backend default. Authenticode signing is optional for download availability.
 - **Rollout boundary:** ordinary print-job creation is still restricted to printer-configuration managers. Existing print callers, including kitchen, must not be switched to managed printing until caller-specific server authorization and source-data validation are implemented.
 
 ## Developer handoff: next steps
@@ -23,14 +23,14 @@ Do these in order; update this list as each item is completed.
 6. **Build and release the installer.** Use the requirements below, review/sign all bundled binaries, build the installer, calculate its SHA-256, upload the immutable version to the approved HTTPS artifact host, and configure `PRINT_AGENT_DOWNLOAD_URL`, `PRINT_AGENT_VERSION`, and `PRINT_AGENT_SHA256` in GHMC. Confirm the authorized admin screen displays the correct release metadata and download link.
 7. **Enable assignments only after acceptance.** Start with one low-risk purpose/printer, verify authorization and failure behavior, and then expand. Keep a documented disable/unassign path and operational owner for station updates and incidents.
 
-The agent release endpoint intentionally reports unavailable until all three `PRINT_AGENT_*` settings are valid. Do not set them to an unsigned, unreviewed, or unpublished artifact.
+The GHMC backend defaults to the published v0.1.0 installer URL, version, and SHA-256. Railway `PRINT_AGENT_*` variables can override these values for later releases. The endpoint requires HTTPS and a 64-character SHA-256, but does not require an Authenticode signature; Windows may still show a publisher warning for an unsigned installer.
 
 ## Known implementation gaps
 
 - No production-wide print-caller migration or final bypass audit has been completed.
 - Managed job creation is manager-only today; caller-specific authorization and backend derivation/validation of source scope are still required.
 - Kitchen integration has not been completed through the kitchen queue's existing ownership model.
-- The frontend installer release link is only useful after a signed artifact is published and its release settings are configured.
+- The frontend installer release link is available when the backend release URL, version, and SHA-256 are valid.
 - The agent is an early implementation, not a supported service deployment. The installer uses a signed-in user's login startup because printer queues and Credential Manager may be user-scoped; validate that model with the pilot account and printer.
 - Validate retries, lease expiry, ambiguous submissions, station replacement, retention/cleanup, and security behavior. The agent currently has no durable local submission journal, so a crash around OS submission/acknowledgement needs explicit recovery work.
 
@@ -42,7 +42,7 @@ Build on a supported 64-bit Windows workstation with Python 3.12, Inno Setup 6, 
 ./build_windows.ps1 -SumatraPdfPath C:\approved\SumatraPDF.exe -Version 0.1.0 -Unsigned
 ```
 
-Unsigned builds are for local testing only. Windows may display an unknown publisher warning, and the artifact must not be published or configured as the GHMC release. For a signed release build, install Windows SDK `signtool.exe` and the approved code-signing certificate, then run:
+Unsigned builds can be published as the GHMC release. Windows may display an unknown publisher warning. To create a signed build instead, install Windows SDK `signtool.exe` and the approved code-signing certificate, then run:
 
 ```powershell
 ./build_windows.ps1 -SumatraPdfPath C:\approved\SumatraPDF.exe -Version 0.1.0

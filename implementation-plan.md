@@ -1,6 +1,6 @@
 # Centralized Desktop Printing: Detailed Implementation Plan
 
-**Implementation status (2026-10-25): partial foundation implemented; not production-ready.** GHMC has a station/job migration, station enrollment and agent routes, an admin configuration screen, a shared PDF dispatcher foundation, and an initial Python Windows agent/installer build path. Migration `c2e3f4a5b6d7` was successfully applied to the development database and verified as Alembic head; verify each deployment environment separately. No signed installer has been built or published. Existing print callers have not been fully migrated, managed job creation is still restricted to printer-config managers, and kitchen integration is outstanding. Do not enable operational assignments yet.
+**Implementation status (2026-10-25): partial foundation implemented; not production-ready.** GHMC has a station/job migration, station enrollment and agent routes, an admin configuration screen, a shared PDF dispatcher foundation, and an initial Python Windows agent/installer build path. Migration `c2e3f4a5b6d7` was successfully applied to the development database and verified as Alembic head; verify each deployment environment separately. Unsigned installer v0.1.0 has been published; Authenticode signing is not required for download availability. Existing print callers have not been fully migrated, managed job creation is still restricted to printer-config managers, and kitchen integration is outstanding. Do not enable operational assignments yet.
 
 ## Progress and developer handoff
 
@@ -22,7 +22,7 @@ Use this section as the working status record. The detailed architecture and acc
 5. Inventory all frontend print callers and migrate in batches to the shared dispatcher, keeping browser printing for unassigned purposes and explicit errors for configured unavailable destinations. Do not silently fall back.
 6. Integrate kitchen through its existing eligibility/claim/ack owner; do not create a competing generic kitchen queue or change kitchen permissions/order lifecycle.
 7. Pilot one low-risk purpose on the actual station/printer from Windows, iOS, and Android clients. Verify printer queue visibility, silent PDF output, outage/restart/revocation handling, and duplicate risk after lost acknowledgement.
-8. Build and sign the Windows installer with reviewed dependencies, publish it at an approved immutable HTTPS artifact location, configure the GHMC release settings, and verify the admin download metadata.
+8. Build the Windows installer with reviewed dependencies, publish it at an approved immutable HTTPS artifact location, configure the GHMC release settings, and verify the admin download metadata. Authenticode signing is optional for installer availability.
 9. Enable assignments gradually only after authorization, failure handling, caller coverage, and pilot acceptance pass. Keep the browser path as the documented unassign/disable recovery.
 
 See `README.md` for the release build command and required Windows signing/build environment. Keep this status block and README synchronized as work proceeds.
@@ -47,7 +47,7 @@ Each installation is separately enrolled and authorized. Downloading or installi
 ## 3. End-to-end behavior
 
 1. An authorized administrator opens the printer configuration screen in the GHMC admin management sidebar.
-2. The administrator downloads the signed Windows agent installer from a versioned release link shown by GHMC.
+2. The administrator downloads the Windows agent installer from a versioned release link shown by GHMC.
 3. The administrator installs the agent on the selected Windows print station. The installer starts the background agent and presents or opens a short enrollment step. Enrollment is authorized by GHMC, is single-use/short-lived, and binds that installation to a named station. The agent stores its resulting credential in Windows-protected storage.
 4. The agent reports the installed printer queues it can use. The admin screen displays this station-reported inventory, lets the administrator refresh it, and allows eligible queues to be named and assigned.
 5. An authorized admin configures purpose/scope assignments, such as table service area, kitchen, warehouse/raw materials, accounting, HR, or reports.
@@ -142,7 +142,7 @@ All configuration writes require server connectivity, show loading/error/permiss
 
 ### B2. Installer hosting and download
 
-Host a signed, versioned Windows installer at a stable HTTPS release URL reachable from the admin frontend. Prefer the organization’s existing deployment/static artifact hosting if it supports installer size, immutable versioned artifacts, access policy, and cache behavior; otherwise use an existing approved release/artifact store. Do not check installer binaries into the frontend source repository or create a new hosting service without a need.
+Host a versioned Windows installer at a stable HTTPS release URL reachable from the admin frontend. Authenticode signing is optional; publish the artifact SHA-256 with its immutable version URL. Prefer the organization’s existing deployment/static artifact hosting if it supports installer size, immutable versioned artifacts, access policy, and cache behavior; otherwise use an existing approved release/artifact store. Do not check installer binaries into the frontend source repository or create a new hosting service without a need.
 
 The frontend download button should point to the latest approved stable version and show version, release date, SHA-256 checksum, and supported Windows versions. Use immutable versioned artifact URLs and a small release manifest or deployment configuration to update the latest link. Only authorized admins see enrollment controls; installer download may be visible according to the organization’s distribution policy. Confirm whether the installer should be public to signed-in staff or restricted to admins.
 
@@ -244,7 +244,7 @@ Do not run both as competing queues. Administrators/executives must not gain kit
 
 1. Implement agent core against the finalized backend contracts.
 2. Validate local queue discovery and print adapter on the selected real Windows station/printer.
-3. Create signed installer with background startup, protected credential storage, upgrade/uninstall, version, checksum, and operator guide.
+3. Create installer with background startup, protected credential storage, upgrade/uninstall, version, checksum, and operator guide. Code signing may be added separately but is not required for download availability.
 4. Exercise outage, restart, revocation, printer unavailable, lease expiry, ambiguous OS submission, and logs.
 
 **Exit:** a clean Windows PC can install, enroll, print a GHMC test job silently to the selected queue, and recover/report failures accurately without separately installing Python.
@@ -282,7 +282,7 @@ Do not run both as competing queues. Administrators/executives must not gain kit
 
 ## 10. Cross-system acceptance criteria
 
-- One signed Windows installer can be downloaded from the authorized frontend release link and installed on a selected PC without preinstalled Python.
+- One Windows installer can be downloaded from the authorized frontend release link and installed on a selected PC without preinstalled Python.
 - Each installed PC has an independent enrollment identity and revocable credential; download does not grant job access.
 - The admin management sidebar can see station health and station-reported printers, refresh inventory, run a test print, and configure purpose/scope assignments.
 - Browser requests from Windows, iOS, and Android are routed by server-validated assignment to the intended printer through the enrolled Windows agent.
