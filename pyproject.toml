@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ghmc-print-agent"
+version = "0.1.0"
+description = "Windows print station agent for GHMC"
+requires-python = ">=3.12"
+dependencies = ["keyring>=25.6,<26"]
+
+[project.optional-dependencies]
+build = ["pyinstaller>=6.10,<7"]
+
+[project.scripts]
+ghmc-print-agent = "ghmc_print_agent.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -1,0 +1,9 @@
+Task: Plan and Implement a Centralized Desktop Printing Agent
+
+Objective
+
+Design and implement a lightweight desktop printing agent that integrates with our existing application and backend to support automatic printing without requiring users to interact with the browser's print dialog.
+
+The agent should run quietly in the background on supported desktop computers, receive authorized print jobs from our backend, and send them to the appropriate locally available printer.
+
+Important: You have access to my existing systems and repositories. Inspect the actual codebase, understand the current architecture, and make implementation decisions based on what already exists. Do not assume the architecture, invent APIs, or introduce unnecessary infrastructure.
