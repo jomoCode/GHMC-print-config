@@ -8,8 +8,8 @@ This repository contains the GHMC Windows print station agent, packaging path, a
 - **GHMC backend:** source includes one-time station enrollment, token-based agent lifecycle, station inventory reporting, printer assignment and resolution, test jobs, job creation, claim, acknowledgement, and release metadata routes. Review and test the current code and authorization boundaries before production rollout.
 - **Web frontend:** the permission-gated Printer Management screen supports enrollment codes, station/printer inventory, refresh/revoke, test print, assignments, and recent jobs. A shared PDF `dispatchPrint` helper exists, but it has not been adopted by all print callers.
 - **Agent:** `src/ghmc_print_agent` is a Python polling implementation. It discovers Windows queues through PowerShell, stores its station token with `keyring`, and submits PDFs with SumatraPDF. It is an initial slice; see the gaps below before calling it production-ready.
-- **Installer:** `build_windows.ps1` and `packaging/installer.iss` define a per-user Windows installer and login startup. The unsigned v0.1.0 installer is published as a GitHub release and its release metadata is the backend default. Authenticode signing is optional for download availability.
-- **Next installer:** v0.1.1 was built locally on 2026-10-27 with the Start or Resume shortcut and repeat-launch enrollment handling. The installer is unsigned; SHA-256 is `507090959656084391D05502C29EF63F2794B1DEEAC7A547FAA3A63A4CFD92EA`. Its GitHub release has not yet been published, so the backend release settings remain on v0.1.0.
+- **Installer:** `build_windows.ps1` and `packaging/installer.iss` define a per-user Windows installer and login startup. Unsigned installer v0.1.1 is published at `https://github.com/jomoCode/GHMC-print-config/releases/download/v0.1.1/GHMCPrintAgent-Setup-0.1.1.exe`. The backend source defaults point to its version, URL, and SHA-256; deployment-specific `PRINT_AGENT_*` variables can override them. Authenticode signing is optional for download availability.
+- **v0.1.1 checksum:** `507090959656084391D05502C29EF63F2794B1DEEAC7A547FAA3A63A4CFD92EA`. The release adds a Start or Resume shortcut and repeat-launch enrollment handling.
 - **Rollout boundary:** ordinary print-job creation is still restricted to printer-configuration managers. Existing print callers, including kitchen, must not be switched to managed printing until caller-specific server authorization and source-data validation are implemented.
 
 ## Developer handoff: next steps
@@ -24,7 +24,7 @@ Do these in order; update this list as each item is completed.
 6. **Build and release the installer.** Use the requirements below, review/sign all bundled binaries, build the installer, calculate its SHA-256, upload the immutable version to the approved HTTPS artifact host, and configure `PRINT_AGENT_DOWNLOAD_URL`, `PRINT_AGENT_VERSION`, and `PRINT_AGENT_SHA256` in GHMC. Confirm the authorized admin screen displays the correct release metadata and download link.
 7. **Enable assignments only after acceptance.** Start with one low-risk purpose/printer, verify authorization and failure behavior, and then expand. Keep a documented disable/unassign path and operational owner for station updates and incidents.
 
-The GHMC backend defaults to the published v0.1.0 installer URL, version, and SHA-256. Railway `PRINT_AGENT_*` variables can override these values for later releases. The endpoint requires HTTPS and a 64-character SHA-256, but does not require an Authenticode signature; Windows may still show a publisher warning for an unsigned installer.
+The GHMC backend defaults to the published v0.1.1 installer URL, version, and SHA-256. Railway `PRINT_AGENT_*` variables can override these values. The endpoint requires HTTPS and a 64-character SHA-256, but does not require an Authenticode signature; Windows may still show a publisher warning for an unsigned installer.
 
 ## Known implementation gaps
 
