@@ -25,14 +25,15 @@ Source: "{#GetEnv('GHMC_AGENT_STAGE')}\SumatraPDF.exe"; DestDir: "{app}"; Flags:
 Source: "{#GetEnv('GHMC_AGENT_STAGE')}\start_agent.vbs"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\Enroll GHMC Print Station"; Filename: "{app}\GHMCPrintAgent.exe"; Parameters: "--enroll --sumatra ""{app}\SumatraPDF.exe"""; IconFilename: "{app}\GHMCPrintAgent.exe"
+Name: "{group}\Start or Resume GHMC Print Agent"; Filename: "{sys}\wscript.exe"; Parameters: """{app}\start_agent.vbs"""; IconFilename: "{app}\GHMCPrintAgent.exe"
+Name: "{group}\Enroll or Resume GHMC Print Station"; Filename: "{app}\GHMCPrintAgent.exe"; Parameters: "--enroll --sumatra ""{app}\SumatraPDF.exe"""; IconFilename: "{app}\GHMCPrintAgent.exe"
 Name: "{group}\Uninstall GHMC Print Agent"; Filename: "{uninstallexe}"
 
 [Registry]
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "GHMCPrintAgent"; ValueData: "wscript.exe ""{app}\start_agent.vbs"""; Flags: uninsdeletevalue
 
 [Run]
-Filename: "{app}\GHMCPrintAgent.exe"; Parameters: "--enroll --sumatra ""{app}\SumatraPDF.exe"""; Description: "Enroll this PC as a GHMC print station"; Flags: postinstall runasoriginaluser
+Filename: "{app}\GHMCPrintAgent.exe"; Parameters: "--enroll --sumatra ""{app}\SumatraPDF.exe"""; Description: "Enroll or start this GHMC print station"; Flags: postinstall runasoriginaluser
 
 [UninstallRun]
 Filename: "{app}\GHMCPrintAgent.exe"; Parameters: "--remove-local-credential"; Flags: runhidden

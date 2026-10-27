@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import ctypes
 import json
 import logging
 import os
@@ -26,6 +27,7 @@ CONFIG_PATH = CONFIG_DIR / "config.json"
 TOKEN_KEY = "agent-token"
 DEFAULT_API_BASE_URL = "https://ghmc-production.up.railway.app/api/v1"
 LOG = logging.getLogger("ghmc-print-agent")
+_INSTANCE_MUTEX_HANDLE = None
 
 
 def request_json(base_url: str, path: str, *, token: str | None = None, body: Any = None) -> Any:
@@ -40,6 +42,28 @@ def request_json(base_url: str, path: str, *, token: str | None = None, body: An
     )
     with urllib.request.urlopen(request, timeout=20) as response:
         return json.loads(response.read().decode("utf-8"))
+
+
+def acquire_single_instance() -> bool:
+    """Keep repeated Start-menu launches from creating competing pollers."""
+    global _INSTANCE_MUTEX_HANDLE
+    if os.name != "nt":
+        return True
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    create_mutex = kernel32.CreateMutexW
+    create_mutex.argtypes = (ctypes.c_void_p, ctypes.c_bool, ctypes.c_wchar_p)
+    create_mutex.restype = ctypes.c_void_p
+    ctypes.set_last_error(0)
+    handle = create_mutex(None, False, r"Local\GHMCDesktopPrintAgent")
+    if not handle:
+        raise ctypes.WinError(ctypes.get_last_error())
+    if ctypes.get_last_error() == 183:  # ERROR_ALREADY_EXISTS
+        kernel32.CloseHandle.argtypes = (ctypes.c_void_p,)
+        kernel32.CloseHandle(handle)
+        LOG.info("The GHMC print agent is already running")
+        return False
+    _INSTANCE_MUTEX_HANDLE = handle
+    return True
 
 
 def discover_printers() -> list[dict[str, str]]:
@@ -131,6 +155,8 @@ def print_pdf(job: dict[str, Any], sumatra: Path) -> None:
 
 
 def run_agent(base_url: str, sumatra: Path) -> None:
+    if not acquire_single_instance():
+        return
     token = keyring.get_password(SERVICE_NAME, TOKEN_KEY)
     if not token:
         raise RuntimeError("Agent is not enrolled; run the enroll command first")
@@ -192,6 +218,30 @@ def main() -> None:
         return
     base_url = args.api_base
     if args.enroll:
+        existing_token = keyring.get_password(SERVICE_NAME, TOKEN_KEY)
+        if CONFIG_PATH.exists() and existing_token:
+            saved_config = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+            saved_base_url = saved_config["api_base_url"]
+            saved_sumatra = args.sumatra or Path(saved_config.get("sumatra_path") or "")
+            if not saved_sumatra.is_file():
+                parser.error("The saved SumatraPDF path is missing. Reinstall the GHMC print agent.")
+            if getattr(sys, "frozen", False):
+                launcher = Path(sys.executable).resolve().parent / "start_agent.vbs"
+                if not launcher.is_file():
+                    parser.error("The installed agent launcher is missing. Reinstall the GHMC print agent.")
+                subprocess.Popen(
+                    ["wscript.exe", str(launcher)],
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    creationflags=0x00000008 | 0x08000000,
+                    close_fds=True,
+                )
+                print("Existing GHMC print station started. No new enrollment code is needed.")
+            else:
+                print("Existing GHMC print station starting. No new enrollment code is needed.")
+                run_agent(saved_base_url, saved_sumatra)
+            return
         if not base_url:
             base_url = DEFAULT_API_BASE_URL
         base_url = base_url.rstrip("/")
