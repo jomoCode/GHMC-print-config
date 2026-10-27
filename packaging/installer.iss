@@ -1,6 +1,6 @@
 #define AppName "GHMC Desktop Print Agent"
 #ifndef AppVersion
-  #define AppVersion "0.1.0"
+  #define AppVersion "0.1.1"
 #endif
 
 [Setup]

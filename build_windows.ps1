@@ -1,7 +1,7 @@
 param(
     [Parameter(Mandatory = $true)]
     [string]$SumatraPdfPath,
-    [string]$Version = "0.1.0",
+    [string]$Version = "0.1.1",
     [switch]$Unsigned
 )
 
@@ -59,8 +59,16 @@ $env:GHMC_AGENT_STAGE = $stage
 $env:GHMC_AGENT_VERSION = $Version
 
 $iscc = Get-Command ISCC.exe -ErrorAction SilentlyContinue
-if (-not $iscc) { throw "Inno Setup 6 (ISCC.exe) is required to build the installer." }
-& $iscc.Source "/DAppVersion=$Version" (Join-Path $root "packaging\installer.iss")
+$isccPath = $iscc.Source
+if (-not $isccPath) {
+    $isccCandidates = @(
+        (Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"),
+        (Join-Path $env:ProgramFiles "Inno Setup 6\ISCC.exe")
+    )
+    $isccPath = $isccCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+}
+if (-not $isccPath) { throw "Inno Setup 6 (ISCC.exe) is required to build the installer." }
+& $isccPath "/DAppVersion=$Version" (Join-Path $root "packaging\installer.iss")
 if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed with exit code $LASTEXITCODE." }
 
 $installer = Join-Path $distRoot "GHMCPrintAgent-Setup-$Version.exe"
@@ -69,5 +77,5 @@ if (-not $Unsigned) {
     & $signtool.Source sign /sha1 $env:GHMC_SIGNING_CERT_THUMBPRINT /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $installer
     if ($LASTEXITCODE -ne 0) { throw "Signing the installer failed." }
 }
-if ($Unsigned) { Write-Warning "Built an UNSIGNED local-testing artifact. Do not publish it or configure it as a GHMC release." }
+if ($Unsigned) { Write-Warning "Built an unsigned artifact. Authenticode signing is optional for GHMC release availability; verify the release policy and publish its SHA-256 with the immutable versioned asset." }
 Get-FileHash -Algorithm SHA256 -LiteralPath $installer

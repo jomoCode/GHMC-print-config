@@ -9,6 +9,7 @@ This repository contains the GHMC Windows print station agent, packaging path, a
 - **Web frontend:** the permission-gated Printer Management screen supports enrollment codes, station/printer inventory, refresh/revoke, test print, assignments, and recent jobs. A shared PDF `dispatchPrint` helper exists, but it has not been adopted by all print callers.
 - **Agent:** `src/ghmc_print_agent` is a Python polling implementation. It discovers Windows queues through PowerShell, stores its station token with `keyring`, and submits PDFs with SumatraPDF. It is an initial slice; see the gaps below before calling it production-ready.
 - **Installer:** `build_windows.ps1` and `packaging/installer.iss` define a per-user Windows installer and login startup. The unsigned v0.1.0 installer is published as a GitHub release and its release metadata is the backend default. Authenticode signing is optional for download availability.
+- **Next installer:** v0.1.1 was built locally on 2026-10-27 with the Start or Resume shortcut and repeat-launch enrollment handling. The installer is unsigned; SHA-256 is `507090959656084391D05502C29EF63F2794B1DEEAC7A547FAA3A63A4CFD92EA`. Its GitHub release has not yet been published, so the backend release settings remain on v0.1.0.
 - **Rollout boundary:** ordinary print-job creation is still restricted to printer-configuration managers. Existing print callers, including kitchen, must not be switched to managed printing until caller-specific server authorization and source-data validation are implemented.
 
 ## Developer handoff: next steps
@@ -39,13 +40,13 @@ The GHMC backend defaults to the published v0.1.0 installer URL, version, and SH
 Build on a supported 64-bit Windows workstation with Python 3.12, Inno Setup 6, and a reviewed Authenticode-signed SumatraPDF executable. For a local unsigned build, run:
 
 ```powershell
-./build_windows.ps1 -SumatraPdfPath C:\approved\SumatraPDF.exe -Version 0.1.0 -Unsigned
+./build_windows.ps1 -SumatraPdfPath C:\approved\SumatraPDF.exe -Version 0.1.1 -Unsigned
 ```
 
 Unsigned builds can be published as the GHMC release. Windows may display an unknown publisher warning. To create a signed build instead, install Windows SDK `signtool.exe` and the approved code-signing certificate, then run:
 
 ```powershell
-./build_windows.ps1 -SumatraPdfPath C:\approved\SumatraPDF.exe -Version 0.1.0
+./build_windows.ps1 -SumatraPdfPath C:\approved\SumatraPDF.exe -Version 0.1.1
 ```
 
 Set `GHMC_SIGNING_CERT_THUMBPRINT` to the release certificate thumbprint. The script stages the agent and SumatraPDF, builds the installer, signs the executable and installer, and prints the installer SHA-256. The resulting installer still needs a release upload and deployment settings update before the admin screen can offer a working download.
