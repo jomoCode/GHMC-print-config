@@ -1,6 +1,6 @@
 # Centralized Desktop Printing: Detailed Implementation Plan
 
-**Implementation status (updated 2026-10-27): partial foundation implemented; not production-ready.** GHMC has a station/job migration, station enrollment and agent routes, an admin configuration screen, a shared PDF dispatcher foundation, and an initial Python Windows agent/installer build path. Migration `c2e3f4a5b6d7` was successfully applied to the development database and verified as Alembic head; verify each deployment environment separately. Unsigned installers v0.1.0 and v0.1.1 have been published; v0.1.1 adds Start/Resume behavior and the backend source defaults now point to its release URL and SHA-256. Deployment-specific `PRINT_AGENT_*` settings may override those defaults and must be updated separately. Authenticode signing is not required for download availability. Existing print callers have not been fully migrated, managed job creation is still restricted to printer-config managers, and kitchen integration is outstanding. Do not enable operational assignments yet.
+**Implementation status (updated 2026-10-27): partial foundation implemented; not production-ready.** GHMC has a station/job migration, station enrollment and agent routes, an admin configuration screen, a shared PDF dispatcher, and an initial Python Windows agent/installer build path. Migration `c2e3f4a5b6d7` was applied to the development database and verified as Alembic head; verify each deployment environment separately. Unsigned installers v0.1.0 and v0.1.1 have been published; v0.1.1 adds Start/Resume behavior and the backend defaults point to its release URL and SHA-256. **Report actions, saved table-order dockets and stock-sale receipts, staff profile/directory printouts, HR documents, and department-request printouts now use managed dispatch with purpose-specific authorization.** Table dockets derive service-area scope from the source booking. Unassigned purposes preserve browser printing and configured destination errors are surfaced. Kitchen auto-print remains separate and is not yet integrated with managed assignments; its KitchenStaff-only claim/ack workflow must be completed without using the generic kitchen job path. Configuration writes remain administrator-only. Pilot and security verification are still required.
 
 ## Progress and developer handoff
 
@@ -10,17 +10,17 @@ Use this section as the working status record. The detailed architecture and acc
 
 - GHMC backend includes station enrollment/revocation, agent heartbeat and queue inventory, assignment resolution and management, test print jobs, durable print jobs, atomic claim, acknowledgement, recent-job diagnostics, and installer release metadata.
 - Migration `c2e3f4a5b6d7_desktop_print_agent.py` adds the station/job schema and claim function. The asyncpg migration execution issue was fixed by splitting multi-command SQL blocks. Development DB upgrade succeeded; current Alembic revision was `c2e3f4a5b6d7`.
-- The frontend includes the permission-gated Printer Management screen and `app/lib/printing/printDispatcher.ts`. The helper resolves an assignment, preserves the caller's browser callback when no assignment exists, and submits managed PDF jobs when assigned.
+- The frontend includes the permission-gated Printer Management screen and `app/lib/printing/printDispatcher.ts`. Report printing and saved table-order dockets invoke it with purpose-specific targets. Other print callers have not yet been migrated, so their assignments do not yet change actual print behavior.
 - The `printer-config` repository includes the polling agent, Windows queue discovery, Credential Manager integration through `keyring`, SumatraPDF submission, and an Inno Setup/per-user startup packaging path.
 
 ### Outstanding work (next developer sequence)
 
 1. Verify migration head against the intended database before every deployment; do not rely on the development DB result.
 2. Reconcile the backend, frontend, and agent API contracts against the actual mounted route prefixes and OpenAPI. Add backend coverage for permission/source authorization, enrollment replay, revocation/station isolation, inventory validation, assignment routing, idempotency, concurrent claims/lease expiry, acknowledgement transitions, and payload/secret redaction.
-3. Replace manager-only job creation with purpose-specific authorization and trusted server-side source/scope validation. Do this before enabling normal staff callers. The client must not be authoritative for printer selection or protected document access.
+3. Extend purpose-specific dispatch authorization beyond the report pilot. Report dispatch now uses `print-reports`; keep configuration permission separate. Add trusted server-side source/document/scope validation for remaining purposes before enabling their staff callers. A client-supplied PDF, target key, or scope is not proof of access; the client must not be authoritative for printer selection or protected document access.
 4. Harden the agent for recoverable operation: request/response and payload bounds, timeouts/backoff, structured redacted diagnostics, local in-flight/ambiguous submission journal and restart reconciliation, and explicit retry behavior. Validate the installed command, first-run enrollment, startup, upgrade, revoke, and uninstall on a clean Windows machine.
-5. Inventory all frontend print callers and migrate in batches to the shared dispatcher, keeping browser printing for unassigned purposes and explicit errors for configured unavailable destinations. Do not silently fall back.
-6. Integrate kitchen through its existing eligibility/claim/ack owner; do not create a competing generic kitchen queue or change kitchen permissions/order lifecycle.
+5. Inventory all frontend print callers and migrate in batches to the shared dispatcher. Current report, docket, receipt, staff, HR, and department-request actions are migrated. Keep browser printing for unassigned purposes and show explicit errors for configured unavailable destinations; do not silently fall back.
+6. Complete kitchen through its existing KitchenStaff eligibility/claim/ack owner; then resolve its configured kitchen assignment to the agent without creating a competing queue or changing kitchen permissions/order lifecycle.
 7. Pilot one low-risk purpose on the actual station/printer from Windows, iOS, and Android clients. Verify printer queue visibility, silent PDF output, outage/restart/revocation handling, and duplicate risk after lost acknowledgement.
 8. Build the Windows installer with reviewed dependencies, publish it at an approved immutable HTTPS artifact location, configure the GHMC release settings, and verify the admin download metadata. Authenticode signing is optional for installer availability.
 9. Enable assignments gradually only after authorization, failure handling, caller coverage, and pilot acceptance pass. Keep the browser path as the documented unassign/disable recovery.
@@ -261,12 +261,13 @@ Do not run both as competing queues. Administrators/executives must not gain kit
 
 ### Phase 4 — Shared dispatcher and caller migration
 
-1. Implement shared print dispatcher with browser fallback and managed-job submission.
-2. Migrate one low-risk non-sensitive printable and verify routing/status.
-3. Migrate receipts and table/order dockets, preserving transactional behavior.
-4. Integrate kitchen through the established kitchen ownership model.
-5. Migrate warehouse/raw-materials, accounting, HR, reports, and remaining in-scope print callers.
-6. Audit for bypasses, scope correctness, permission preservation, and explicit fallback.
+1. Implement shared print dispatcher with browser fallback and managed-job submission. Keep assignment configuration permission separate from staff dispatch permission. (Foundation implemented.)
+2. Add purpose-specific server authorization and trusted source/document/scope validation. A request containing only a client-generated PDF and target fields is insufficient. (Report purpose authorization implemented with `print-reports`; source-bound validation remains a requirement for other purposes.)
+3. Migrate one low-risk non-sensitive printable and verify authorization, routing, status, and fallback. (Report screen is the first migrated caller; pilot verification remains outstanding.)
+4. Migrate receipts and table/order dockets, preserving transactional behavior and existing order access checks.
+5. Integrate kitchen through the established kitchen eligibility and claim/acknowledgement owner; do not create a parallel generic queue.
+6. Migrate warehouse/raw-materials, accounting, HR, reports, and remaining in-scope print callers. (The report screen's `report/report` purpose is migrated.)
+7. Audit for bypasses, exact scope correctness, authorization, and explicit fallback. Until each caller is migrated, its saved assignment does not affect its current browser print behavior.
 
 **Exit:** all in-scope printables route by configured purpose/scope or intentionally use browser printing when unassigned; unavailable configured destinations are visible errors.
 
