@@ -2,14 +2,15 @@
 
 This repository contains the GHMC Windows print station agent, packaging path, and implementation handoff. The project is a partial implementation and is not ready for production-wide automatic printing.
 
-## Progress snapshot (2026-10-25)
+## Progress snapshot (2026-11-01)
 
 - **Database:** migration `c2e3f4a5b6d7` was applied successfully to the development database; Alembic reported it as `head`. It creates station, job, and attempt tables, extends printer records, installs the atomic claim function, and grants the required service-role access. Verify the revision independently in every target environment before deploying code there.
 - **GHMC backend:** source includes one-time station enrollment, token-based agent lifecycle, station inventory reporting, printer assignment and resolution, test jobs, job creation, claim, acknowledgement, and release metadata routes. Review and test the current code and authorization boundaries before production rollout.
 - **Web frontend:** the permission-gated Printer Management screen supports enrollment codes, station/printer inventory, refresh/revoke, test print, assignments, and recent jobs. Report actions use `report/report` and require `print-reports`; saved table-order dockets and stock-sale receipts use a source order where available; staff profile/directory printing requires staff-management read access; HR printing requires HR management access; department-request printing validates request visibility. Unassigned purposes retain browser printing. Kitchen tickets still use a separate KitchenStaff workflow and are not routed through the generic agent job queue.
 - **Agent:** `src/ghmc_print_agent` is a Python polling implementation. It discovers Windows queues through PowerShell, stores its station token with `keyring`, and submits PDFs with SumatraPDF. It is an initial slice; see the gaps below before calling it production-ready.
-- **Installer:** `build_windows.ps1` and `packaging/installer.iss` define a per-user Windows installer and login startup. Unsigned installer v0.1.1 is published at `https://github.com/jomoCode/GHMC-print-config/releases/download/v0.1.1/GHMCPrintAgent-Setup-0.1.1.exe`. The backend source defaults point to its version, URL, and SHA-256; deployment-specific `PRINT_AGENT_*` variables can override them. Authenticode signing is optional for download availability.
+- **Installer:** `build_windows.ps1` and `packaging/installer.iss` define a per-user Windows installer and login startup. Version 0.1.2 is published at `https://github.com/jomoCode/GHMC-print-config/releases/download/v0.1.2/GHMCPrintAgent-Setup-0.1.2.exe`. It fixes the bundled SumatraPDF executable and validates the official portable filename and metadata before packaging. The backend source defaults point to this release; deployment-specific `PRINT_AGENT_*` variables can override them. Authenticode signing is optional for download availability.
 - **v0.1.1 checksum:** `507090959656084391D05502C29EF63F2794B1DEEAC7A547FAA3A63A4CFD92EA`. The release adds a Start or Resume shortcut and repeat-launch enrollment handling.
+- **v0.1.2 checksum:** `084B99B511C8DC6074037A8C61952973FDF4CD6295F3AF22DBA813A23C2D6F3A`. This release bundles the SumatraPDF 3.6.1 portable executable (`719F689B34F47BE8CA105CE8484948474DAFDE0E106BAB599E4A89326070C3D0`).
 - **Rollout boundary:** report job creation is authorized by `print-reports`; table dockets require order view permission or order-creation permission for the caller's own order. Other ordinary print-job creation is still restricted to printer-configuration managers. Configuration changes remain administrator-only. Each remaining purpose must be authorized against its caller's existing permission and validated source document on the server before its callers are migrated; kitchen must retain its existing queue ownership.
 
 ## Developer handoff: next steps
@@ -24,7 +25,7 @@ Do these in order; update this list as each item is completed.
 6. **Build and release the installer.** Use the requirements below, review/sign all bundled binaries, build the installer, calculate its SHA-256, upload the immutable version to the approved HTTPS artifact host, and configure `PRINT_AGENT_DOWNLOAD_URL`, `PRINT_AGENT_VERSION`, and `PRINT_AGENT_SHA256` in GHMC. Confirm the authorized admin screen displays the correct release metadata and download link.
 7. **Enable assignments only after acceptance.** Start with one low-risk purpose/printer, verify authorization and failure behavior, and then expand. Keep a documented disable/unassign path and operational owner for station updates and incidents.
 
-The GHMC backend defaults to the published v0.1.1 installer URL, version, and SHA-256. Railway `PRINT_AGENT_*` variables can override these values. The endpoint requires HTTPS and a 64-character SHA-256, but does not require an Authenticode signature; Windows may still show a publisher warning for an unsigned installer.
+The GHMC backend defaults to the published v0.1.2 installer URL, version, and SHA-256. Railway `PRINT_AGENT_*` variables can override these values. The endpoint requires HTTPS and a 64-character SHA-256, but does not require an Authenticode signature; Windows may still show a publisher warning for an unsigned installer.
 
 ## Known implementation gaps
 
@@ -40,16 +41,16 @@ The GHMC backend defaults to the published v0.1.1 installer URL, version, and SH
 Build on a supported 64-bit Windows workstation with Python 3.12, Inno Setup 6, and a reviewed Authenticode-signed SumatraPDF executable. For a local unsigned build, run:
 
 ```powershell
-./build_windows.ps1 -SumatraPdfPath C:\approved\SumatraPDF.exe -Version 0.1.1 -Unsigned
+./build_windows.ps1 -SumatraPdfPath C:\approved\SumatraPDF-3.6.1-64.exe -Version 0.1.2 -Unsigned
 ```
 
 Unsigned builds can be published as the GHMC release. Windows may display an unknown publisher warning. To create a signed build instead, install Windows SDK `signtool.exe` and the approved code-signing certificate, then run:
 
 ```powershell
-./build_windows.ps1 -SumatraPdfPath C:\approved\SumatraPDF.exe -Version 0.1.1
+./build_windows.ps1 -SumatraPdfPath C:\approved\SumatraPDF-3.6.1-64.exe -Version 0.1.2
 ```
 
-Set `GHMC_SIGNING_CERT_THUMBPRINT` to the release certificate thumbprint. The script stages the agent and SumatraPDF, builds the installer, signs the executable and installer, and prints the installer SHA-256. The resulting installer still needs a release upload and deployment settings update before the admin screen can offer a working download.
+Use the SumatraPDF **portable ZIP** from the official download page and pass its extracted viewer executable. Do not pass the SumatraPDF installer; signing and version metadata alone cannot distinguish it from the viewer. The build requires SumatraPDF's official portable release filename, verifies its metadata and Authenticode signature, checks the staged executable hash, builds the installer, signs the GHMC executable and installer when configured, and prints the installer SHA-256. Version 0.1.2 is published and GHMC's source defaults now offer it; update any deployment-level `PRINT_AGENT_*` overrides and redeploy the backend to expose it in the running application.
 
 The installer runs under the signed-in Windows user so that it can see that user's installed printer queues and Credential Manager. Enrollment defaults to `https://ghmc-production.up.railway.app/api/v1`, based on GHMC's `BACKEND_API_URL`. To enroll against another backend, supply `--api-base https://your-backend.example` (the agent adds `/api/v1` when it is absent), then enter the short-lived code created in the admin screen. After enrollment, it starts the agent quietly and configures it to start at that user's next logon. The Start menu includes **Start or Resume GHMC Print Agent** for manual recovery; the enrollment launcher also resumes an existing local enrollment without asking for another code. Repeated launches are safe and do not create competing agent processes. Use a dedicated print-station account and validate its session, queue visibility, and uptime during the pilot.
 

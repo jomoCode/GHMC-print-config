@@ -1,7 +1,7 @@
 param(
     [Parameter(Mandatory = $true)]
     [string]$SumatraPdfPath,
-    [string]$Version = "0.1.1",
+    [string]$Version = "0.1.2",
     [switch]$Unsigned
 )
 
@@ -18,6 +18,14 @@ $venv = Join-Path $buildRoot ".venv"
 
 if (-not (Test-Path -LiteralPath $SumatraPdfPath -PathType Leaf)) {
     throw "Provide the reviewed SumatraPDF executable with -SumatraPdfPath."
+}
+$sumatraFileName = [IO.Path]::GetFileName($SumatraPdfPath)
+if ($sumatraFileName -notmatch '(?i)^SumatraPDF-\d+(?:\.\d+)*(?:-(?:32|64|arm64))?\.exe$') {
+    throw "Provide the executable under its official portable release filename (for example, SumatraPDF-3.6.1-64.exe) from the portable ZIP. Do not rename or pass the installer."
+}
+$sumatraVersion = (Get-Item -LiteralPath $SumatraPdfPath).VersionInfo
+if ($sumatraVersion.ProductName -ne "SumatraPDF" -or $sumatraVersion.FileDescription -ne "SumatraPDF") {
+    throw "The supplied file does not identify itself as the SumatraPDF application."
 }
 $sumatraSignature = Get-AuthenticodeSignature -LiteralPath $SumatraPdfPath
 if ($sumatraSignature.Status -ne "Valid") {
@@ -54,6 +62,11 @@ if (Test-Path -LiteralPath $stage) { Remove-Item -LiteralPath $stage -Recurse -F
 New-Item -ItemType Directory -Force -Path $stage | Out-Null
 Copy-Item -LiteralPath (Join-Path $distRoot "GHMCPrintAgent.exe") -Destination $stage
 Copy-Item -LiteralPath $SumatraPdfPath -Destination (Join-Path $stage "SumatraPDF.exe")
+$stagedSumatraHash = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $stage "SumatraPDF.exe")).Hash
+$sourceSumatraHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $SumatraPdfPath).Hash
+if ($stagedSumatraHash -ne $sourceSumatraHash) {
+    throw "The staged SumatraPDF executable does not match the supplied portable executable."
+}
 Copy-Item -LiteralPath (Join-Path $root "packaging\start_agent.vbs") -Destination $stage
 $env:GHMC_AGENT_STAGE = $stage
 $env:GHMC_AGENT_VERSION = $Version
