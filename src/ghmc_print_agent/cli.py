@@ -145,7 +145,15 @@ def print_pdf(job: dict[str, Any], sumatra: Path) -> None:
         if printer_name not in installed:
             raise OSError("Assigned Windows printer queue is not installed")
         subprocess.run(
-            [str(sumatra), "-silent", "-print-to", str(printer_name), str(pdf_path)],
+            [
+                str(sumatra),
+                "-silent",
+                "-print-to",
+                str(printer_name),
+                "-print-settings",
+                "paper=auto,center",
+                str(pdf_path),
+            ],
             check=True,
             capture_output=True,
             timeout=120,
